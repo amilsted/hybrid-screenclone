@@ -220,11 +220,13 @@ struct image_replayer {
     XImage *src_image, *dst_image;
     GC dst_gc;
     bool damaged;
+    signed x_offset;
+    signed y_offset;	
 
-    image_replayer( const display &_src, const display &_dst, const xinerama_screen &_src_screen )
+    image_replayer( const display &_src, const display &_dst, const xinerama_screen &_src_screen, signed _x_offset, signed _y_offset )
 	: src( &_src ), dst( &_dst), src_screen( &_src_screen )
 	, src_window( src->root() ), dst_window( dst->root() )
-	, damaged( true )
+	, damaged( true ),  x_offset(_x_offset), y_offset(_y_offset)
     {	
 	size_t sz = src_screen->info.width * src_screen->info.height * 4;
 	src_info.shmid = dst_info.shmid = shmget( IPC_PRIVATE, sz, IPC_CREAT | 0666 );
@@ -251,7 +253,7 @@ struct image_replayer {
 
 	TC( XShmGetImage( src->dpy, src_window.win, src_image,
 		src_screen->info.x_org, src_screen->info.y_org, AllPlanes) );
-	TC( XShmPutImage( dst->dpy, dst_window.win, dst_gc, dst_image, 0, 0, 0, 0,
+	TC( XShmPutImage( dst->dpy, dst_window.win, dst_gc, dst_image, 0, 0, x_offset, y_offset,
 		dst_image->width, dst_image->height, False ) );
 	TC( XFlush( dst->dpy ) );
 
@@ -270,11 +272,14 @@ struct mouse_replayer {
     const xinerama_screen src_screen;
     window dst_window;
     Cursor invisibleCursor;
+    signed x_offset;
+    signed y_offset;
     volatile bool on;
+    volatile bool detectInScreen;
     std::recursive_mutex cursor_mutex;
 
-    mouse_replayer( const display &_src, const display &_dst, const xinerama_screen &_src_screen )
-	: src( _src ), dst( _dst), src_screen( _src_screen ), dst_window( dst.root() )
+    mouse_replayer( const display &_src, const display &_dst, const xinerama_screen &_src_screen, signed _x_offset, signed _y_offset)
+	: src( _src ), dst( _dst), src_screen( _src_screen ), dst_window( dst.root() ), x_offset(_x_offset), y_offset(_y_offset)
 	, on( false )
     {
 	// create invisible cursor
@@ -305,14 +310,25 @@ struct mouse_replayer {
     void mouse_moved( int x, int y ) {
 	std::lock_guard< std::recursive_mutex > guard( cursor_mutex );
 
+	if (x > src_screen.info.width || x < x_offset)
+	{
+		TC( XFlush( dst.dpy ) );
+		return;
+	}
+	    
 	bool old_on = on;
 	on = src_screen.in_screen( x, y );
 
+	    
 	if ( on )
+	{
 	    dst_window.warp_pointer( x - src_screen.info.x_org, y - src_screen.info.y_org );
+	}
 	else
+	{
 	    // wiggle the cursor a bit to keep screensaver away
 	    dst_window.warp_pointer( x % 50, y % 50 );
+	}
 
 	if ( old_on != on ) {
 	    if ( on )
@@ -373,7 +389,9 @@ void usage( const char *name )
 	<< "Options:" << std::endl
 	<< " -s <display name> (default :0)" << std::endl
 	<< " -d <display name> (default :1)" << std::endl
-	<< " -x <xinerama screen number> (default 0)" << std::endl;
+	<< " -x <xinerama screen number> (default 0)" << std::endl
+	<< " -t <x offset> (default 0)" << std::endl
+	<< " -u <y offset> (default 0)" << std::endl;
     exit( 0 );
 }
 
@@ -383,9 +401,11 @@ int main( int argc, char *argv[] )
 
     std::string src_name( ":0" ), dst_name( ":1" );
     unsigned screen_number = 0;
+    signed x_offset = 0;
+    signed y_offset = 0;
 
     int opt;
-    while ( ( opt = getopt( argc, argv, "s:d:x:h" ) ) != -1 )
+    while ( ( opt = getopt( argc, argv, "s:d:x:h:t:u" ) ) != -1 )
 	switch ( opt ) {
 	case 's':
 	    src_name = optarg;
@@ -396,6 +416,12 @@ int main( int argc, char *argv[] )
 	case 'x':
 	    screen_number = atoi( optarg );
 	    break;
+	case 't':
+	    x_offset = atoi( optarg );
+	    break;
+	case 'y':
+	    y_offset = atoi( optarg );
+	    break;	
 	default:
 	    usage( argv[ 0 ] );
 	}
@@ -410,14 +436,14 @@ int main( int argc, char *argv[] )
     auto &screen = screens[ screen_number ];
 
     // Clone src not to fight with the blocking loop.
-    mouse_replayer mouse( src.clone(), dst, screen );
-    image_replayer image( src, dst, screen );
+    mouse_replayer mouse( src.clone(), dst, screen, x_offset, y_offset );
+    image_replayer image( src, dst, screen, x_offset, y_offset );
 
     window root = src.root();
     root.create_damage();
 
     src.record_pointer_events( &mouse );
-    src.select_cursor_input( root );
+   src.select_cursor_input( root );
 
     for ( ;; ) {
 	do {
