@@ -309,20 +309,25 @@ struct mouse_replayer {
 
     void mouse_moved( int x, int y ) {
 	std::lock_guard< std::recursive_mutex > guard( cursor_mutex );
+	DBG( std::cout << "mouse moved at " << x << " with screen width " << src_screen.info.width << " and offset " << x_offset << std::endl );
 
-	if (x > src_screen.info.width || x < x_offset)
+	    
+	if ((x > src_screen.info.width+x_offset || x < x_offset)
+		|| (y > src_screen.info.height+y_offset || y < y_offset))
 	{
 		TC( XFlush( dst.dpy ) );
+		DBG( std::cout << x_offset  << "ignoring point at " << x <<  " and offset " << x_offset << " and x_org " << src_screen.info.x_org << std::endl );
 		return;
 	}
 	    
+	    
 	bool old_on = on;
 	on = src_screen.in_screen( x, y );
-
 	    
 	if ( on )
 	{
-	    dst_window.warp_pointer( x - src_screen.info.x_org, y - src_screen.info.y_org );
+	//	DBG( std::cout << "moving point at " << x <<  " and offset " << x_offset << " and x_org " << src_screen.info.x_org << std::endl );
+	    dst_window.warp_pointer( x - src_screen.info.x_org + x_offset, y - src_screen.info.y_org + y_offset );
 	}
 	else
 	{
