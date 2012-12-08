@@ -24,7 +24,7 @@ to the nvidia chipset so it's not available to the intel chip I use while undock
 By using a combination of the virtual crtc patch and screenclone, I can create a dual screen 
 display.  Here is the general script I use:
 
-    !/bin/bash
+    #!/bin/bash
     #change values below to your defaults
     x=1920
     y=1080
@@ -49,7 +49,7 @@ display.  Here is the general script I use:
     #run screenclone in optirun. this way the NVIDIA card will automatically start and shut down. kill with ctrl+c
     echo  $mode
     optirun screenclone -s $DISPLAY -d :8 -x 0 &
-    optirun screenclone -S $DISPLAY -d :8 -x 1 -t 1920
+    optirun screenclone -s $DISPLAY -d :8 -x 1 -t 1920
     #deactivate monitor after screenclone is killed (kill this script with ctrl+C)
     pkill optirun
     xrandr --output VIRTUAL1 --off
