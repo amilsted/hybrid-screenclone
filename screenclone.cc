@@ -274,13 +274,12 @@ struct mouse_replayer {
 	Cursor invisibleCursor;
 	signed x_offset;
 	signed y_offset;
-	unsigned no_mouse;
 	volatile bool on;
 	volatile bool detectInScreen;
 	std::recursive_mutex cursor_mutex;
 
-	mouse_replayer( const display &_src, const display &_dst, const xinerama_screen &_src_screen, const xinerama_screen &_src_screen2, signed _x_offset, signed _y_offset, unsigned _no_mouse)
-		: src( _src ), dst( _dst), src_screen( _src_screen ), src_screen2( _src_screen2 ), dst_window( dst.root() ), x_offset(_x_offset), y_offset(_y_offset), no_mouse( _no_mouse )
+	mouse_replayer( const display &_src, const display &_dst, const xinerama_screen &_src_screen, const xinerama_screen &_src_screen2, signed _x_offset, signed _y_offset)
+		: src( _src ), dst( _dst), src_screen( _src_screen ), src_screen2( _src_screen2 ), dst_window( dst.root() ), x_offset(_x_offset), y_offset(_y_offset)
 		, on( false )
 	{
 		// create invisible cursor
@@ -293,8 +292,7 @@ struct mouse_replayer {
 		invisibleCursor = XCreatePixmapCursor( dst.dpy, bitmapNoData, bitmapNoData,
 			&black, &black, 0, 0);
 	
-		if ( no_mouse == 0 )
-			dst_window.define_cursor( invisibleCursor );
+		dst_window.define_cursor( invisibleCursor );
 	}
 
 	void operator() ( XRecordInterceptData *data ) {
@@ -319,14 +317,6 @@ struct mouse_replayer {
 		on2 = src_screen2.in_screen( x, y );
 	
 		on = on1 || on2;
-	
-		if ( no_mouse == 1 )
-		{
-			if ( on1 )
-				dst_window.warp_pointer( x - src_screen.info.x_org + x_offset, y - src_screen.info.y_org + y_offset );
-			TC( XFlush( dst.dpy ) );
-			return;
-		}
 		
 		if ( on )
 		{
@@ -416,7 +406,6 @@ int main( int argc, char *argv[] )
 	unsigned screen_number = 0, screen2_number = 1;
 	signed x_offset = 0;
 	signed y_offset = 0;
-	unsigned no_mouse = 0;
 
 	int opt;
 	while ( ( opt = getopt( argc, argv, "s:d:x:z:h:t:u" ) ) != -1 )
@@ -457,7 +446,7 @@ int main( int argc, char *argv[] )
 	auto &screen2 = screens[ screen2_number ];
 
 	// Clone src not to fight with the blocking loop.
-	mouse_replayer mouse( src.clone(), dst, screen, screen2, x_offset, y_offset, no_mouse );
+	mouse_replayer mouse( src.clone(), dst, screen, screen2, x_offset, y_offset );
 	image_replayer image( src, dst, screen, 0, 0 );
 	image_replayer image2( src, dst, screen2, x_offset, y_offset );
 
