@@ -45,6 +45,6 @@ W520 (optimus) using a script like this:
 	#activate external monitor and set options for it
 	xrandr --output LVDS1 --auto --output VIRTUAL1 --mode $mode --left-of LVDS1 --output VIRTUAL2 --mode $mode --left-of VIRTUAL1
 	#run screenclone in optirun. this way the NVIDIA card will automatically start and shut down. kill with ctrl+c
-	optirun /home/ash/pkgs/screenclone-git/src/screenclone/screenclone -s $DISPLAY -d :8 -x 2 -z 1 -t 1920
+	optirun screenclone -s $DISPLAY -d :8 -x 2 -z 1 -t 1920
 	#deactivate monitor after screenclone is killed (kill this script with ctrl+C)
 	xrandr --output VIRTUAL1 --off --output VIRTUAL2 --off
